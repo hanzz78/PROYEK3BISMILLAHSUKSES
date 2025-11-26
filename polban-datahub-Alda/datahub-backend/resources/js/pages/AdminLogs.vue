@@ -1,6 +1,5 @@
 <template>
   <div class="admin-page">
-    <!-- Navbar -->
     <nav class="navbar">
       <div class="nav-brand">
         <h2>Polban <span>DataVerse</span></h2>
@@ -12,14 +11,12 @@
       </div>
     </nav>
 
-    <!-- Content -->
     <div class="page-content">
       <div class="page-header">
         <h1>Activity Logs</h1>
         <p>Monitor semua aktivitas pengguna di sistem</p>
       </div>
 
-      <!-- Filters -->
       <div class="filters">
         <select v-model="filterAction" @change="fetchLogs">
           <option value="">Semua Action</option>
@@ -67,7 +64,6 @@
           </tbody>
         </table>
 
-        <!-- Pagination -->
         <div v-if="pagination" class="pagination">
           <button 
             @click="changePage(pagination.current_page - 1)" 
@@ -123,28 +119,37 @@ export default {
           params.action = this.filterAction
         }
 
-        const response = await axios.get('/admin/activity-logs', {
+        // PERBAIKAN: URL diganti jadi '/admin/logs' sesuai api.php
+        const response = await axios.get('/admin/logs', {
           params,
           headers: {
             'Authorization': `Bearer ${this.authStore.token}`
           }
         })
 
-        this.logs = response.data.data
-        this.pagination = {
-          current_page: response.data.current_page,
-          last_page: response.data.last_page,
-          per_page: response.data.per_page,
-          total: response.data.total,
+        // PERBAIKAN: Tambahkan '|| []' untuk mencegah error undefined
+        this.logs = response.data.data || []
+        
+        // PERBAIKAN: Cek keberadaan response.data sebelum akses pagination
+        if (response.data) {
+            this.pagination = {
+              current_page: response.data.current_page || 1,
+              last_page: response.data.last_page || 1,
+              per_page: response.data.per_page || 10,
+              total: response.data.total || 0,
+            }
         }
       } catch (error) {
-        alert('Gagal mengambil logs: ' + (error.response?.data?.message || error.message))
+        console.error('Fetch logs error:', error)
+        this.logs = [] // Kosongkan logs jika error agar tidak crash
+        // Opsional: alert jika ingin notifikasi
+        // alert('Gagal mengambil logs: ' + (error.response?.data?.message || error.message))
       } finally {
         this.loading = false
       }
     },
     changePage(page) {
-      if (page < 1 || page > this.pagination.last_page) return
+      if (!this.pagination || page < 1 || page > this.pagination.last_page) return
       this.currentPage = page
       this.fetchLogs()
     },
@@ -163,9 +168,9 @@ export default {
       if (!dateString) return '-'
       return new Date(dateString).toLocaleString('id-ID')
     },
-    logout() {
+    async logout() {
       if (confirm('Yakin ingin logout?')) {
-        this.authStore.logout()
+        await this.authStore.logout()
         this.$router.push({ name: 'login' })
       }
     }

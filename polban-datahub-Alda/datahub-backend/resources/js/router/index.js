@@ -1,7 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+
+// Import Halaman
 import Login from '../pages/LoginPage.vue'
-//import Dashboard from '../pages/Dashboard.vue'
+// DashboardWrapper tidak dipakai jika kita redirect langsung, tapi biarkan jika ada sisa kode
 import DashboardWrapper from '../pages/DashboardWrapper.vue' 
 import AdminDashboard from '../pages/AdminDashboard.vue' 
 import ParticipantDashboard from '../pages/ParticipantDashboard.vue' 
@@ -19,13 +21,16 @@ const routes = [
         meta: { guest: true }
     },
     {
+        // Route '/' kita biarkan kosong atau redirect manual
         path: '/',
-        name: 'dashboard-wrapper',
-        component: DashboardWrapper,
-        meta: { requiresAuth: true }
+        name: 'root',
+        redirect: to => {
+            // Biarkan beforeEach yang menangani arahnya
+            return { name: 'login' }
+        }
     },
 
-    //admin routes
+    // --- ADMIN ROUTES ---
     {
         path: '/admin/dashboard',
         name: 'admin-dashboard',
@@ -45,7 +50,7 @@ const routes = [
         meta: { requiresAuth: true, role: 'admin' }
     },
 
-    //participant routes
+    // --- PARTICIPANT ROUTES ---
     {
         path: '/participant/dashboard',
         name: 'participant-dashboard',
@@ -64,6 +69,8 @@ const routes = [
         component: ParticipantStatus,
         meta: { requiresAuth: true, role: 'participant' }
     },
+
+    // 404 Not Found
     {
         path: '/:pathMatch(.*)*',
         name: 'not-found',
@@ -76,33 +83,54 @@ const router = createRouter({
     routes,
 })
 
-// Navigation Guard
+// --- NAVIGATION GUARD (PENJAGA PINTU) ---
 router.beforeEach(async (to, from, next) => {
     const authStore = useAuthStore()
 
-    // Initialize auth on first load (wait for it to complete)
+    // 1. Cek User Login (Load dari token jika ada tapi user belum dimuat)
     if (!authStore.user && authStore.token) {
         await authStore.fetchUser()
     }
 
-    const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
-    const guestOnly = to.matched.some(record => record.meta.guest)
-    const requiredRole = to.meta.role
+    const isAuthenticated = authStore.isLoggedIn
+    const userRole = authStore.user?.role
 
-    if (requiresAuth && !authStore.isLoggedIn) {
-        // Redirect to login if not authenticated
-        next({ name: 'login' })
-    }  else if (guestOnly && authStore.isLoggedIn) {
-        // Redirect ke dashboard role jika sudah login
-        const redirectName = authStore.isAdmin ? 'admin-dashboard' : 'participant-dashboard';
-        next({ name: redirectName })
-    } else if (requiredRole && authStore.user?.role !== requiredRole) {
-        // Redirect ke dashboard role jika peran tidak cocok
-        const redirectName = authStore.isAdmin ? 'admin-dashboard' : 'participant-dashboard';
-        next({ name: redirectName })
-    } else {
-        next()
+    // =========================================================
+    // KASUS 1: Mengakses Halaman Perlu Login tapi Belum Login
+    // =========================================================
+    if (to.meta.requiresAuth && !isAuthenticated) {
+        return next({ name: 'login' })
     }
+
+    // =========================================================
+    // KASUS 2: Sudah Login, tapi buka halaman Login atau Root
+    // =========================================================
+    if ((to.meta.guest || to.name === 'root') && isAuthenticated) {
+        const targetRoute = userRole === 'admin' ? 'admin-dashboard' : 'participant-dashboard';
+        
+        // FIX INFINITE REDIRECT: Cek dulu apakah kita sudah di sana?
+        if (to.name !== targetRoute) {
+            return next({ name: targetRoute })
+        }
+    }
+
+    // =========================================================
+    // KASUS 3: Cek Hak Akses Role (Salah Kamar)
+    // =========================================================
+    if (to.meta.role && to.meta.role !== userRole) {
+        // Tentukan harusnya ke mana
+        const targetRoute = userRole === 'admin' ? 'admin-dashboard' : 'participant-dashboard';
+
+        // FIX INFINITE REDIRECT:
+        // Jangan redirect jika kita sudah berada di halaman target!
+        // (Ini mencegah loop jika userRole undefined/salah baca tapi router maksa ke sana)
+        if (to.name !== targetRoute) {
+            return next({ name: targetRoute })
+        }
+    }
+
+    // Jika lolos semua cek, silakan masuk
+    next()
 })
 
 export default router

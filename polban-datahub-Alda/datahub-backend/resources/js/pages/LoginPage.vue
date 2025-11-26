@@ -1,4 +1,3 @@
-
 <template>
   <div class="login-page">
     <div class="login-container">
@@ -68,14 +67,28 @@ export default {
         const result = await authStore.login(this.email, this.password)
         
         if (result.success) {
-          // Redirect to dashboard
-          this.$router.push({ name: 'dashboard' })
+          // === PERBAIKAN DI SINI ===
+          // Kode asli repo mencoba ke 'dashboard' yang tidak ada.
+          // Kita ubah agar mengecek role dan diarahkan ke dashboard yang sesuai.
+          const role = authStore.user?.role
+          
+          if (role === 'admin') {
+            this.$router.push({ name: 'admin-dashboard' })
+          } else {
+            // Default ke participant
+            this.$router.push({ name: 'participant-dashboard' })
+          }
+          // =========================
         } else {
           this.errorMessage = result.message
         }
       } catch (err) {
         console.error('Login error:', err)
-        this.errorMessage = 'Terjadi kesalahan. Silakan coba lagi.'
+        if (err.response && err.response.status === 422) {
+             this.errorMessage = 'Email atau kata sandi salah.'
+        } else {
+             this.errorMessage = 'Terjadi kesalahan. Silakan coba lagi.'
+        }
       } finally {
         this.loading = false
       }
@@ -186,7 +199,6 @@ export default {
 /* ======= BUTTON ======= */
 .btn-login {
   background: linear-gradient(to right, #ff914d, #f8811a);
-  /* Use a darker foreground color to ensure sufficient contrast against the gradient background */
   color: #111827;
   border: none;
   padding: 0.9rem;

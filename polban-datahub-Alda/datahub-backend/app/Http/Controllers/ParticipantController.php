@@ -8,6 +8,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB; // Wajib untuk transaksi
 
 class ParticipantController extends Controller
 {
@@ -23,52 +25,57 @@ class ParticipantController extends Controller
         $imports = ImportMahasiswa::where('user_id', Auth::id())
             ->orderBy('created_at', 'desc')
             ->paginate($request->input('per_page', 10));
-        $this->activityLogService->log(
-            'view_my_documents',
-            'Participant viewed their uploaded documents list.',
-            Auth::id(),
-            $request);
+        
+        // PERBAIKAN: Matikan log ini karena 'view_my_documents' tidak ada di ENUM database
+        // $this->activityLogService->log('view_my_documents', ...);
+        
         return response()->json($imports, 200);
     }
 
     public function getImportDetail(ImportMahasiswa $import)
     {
-        if ($import->user_id !== Auth::id()) 
-        {
+        if ($import->user_id !== Auth::id()) {
             return response()->json(['message' => 'Unauthorized access.'], 403);
         }
-        $this->activityLogService->log(
-            'view_document_detail',
-            "Participant viewed their document detail #{$import->id}",
-            Auth::id(),
-            request());
-        return response()->json(['data' => $import,], 200);
+        
+        // PERBAIKAN: Matikan log ini karena 'view_document_detail' tidak ada di ENUM database
+        // $this->activityLogService->log('view_document_detail', ...);
+
+        return response()->json(['data' => $import], 200);
     }
 
     public function storeImport(Request $request)
     {
-        $validator = Validator::make($request->all(), ['file' => 'required|file|mimes:csv,xlsx,xls|max:10240',]);
+        // Validasi
+        $validator = Validator::make($request->all(), [
+            'file' => 'required|file|mimes:csv,txt,xlsx,xls|max:20480',
+        ]);
 
-        if ($validator->fails()) 
-        {
+        if ($validator->fails()) {
             return response()->json(['message' => 'Validation failed', 'errors' => $validator->errors()], 422);
         }
 
-        try 
-        {
+        $filePath = null;
+
+        // Mulai Transaksi Database
+        DB::beginTransaction();
+
+        try {
             $file = $request->file('file');            
-            // 1. Simpan file asli ke storage
             $fileName = time() . '_' . $file->getClientOriginalName();
-            // Gunakan path yang spesifik per user agar lebih terorganisir
             $storagePath = 'imports/' . Auth::id();
-            $filePath = $file->storeAs($storagePath, $fileName);             
-            // 2. Hitung jumlah baris (untuk informasi Admin/Participant)
-            $rowCount = $this->countRows($file->getRealPath(), $file->getClientOriginalExtension());
             
-            // 3. Buat satu record ImportMahasiswa untuk merepresentasikan DOKUMEN ini
+            // 1. Simpan File Fisik
+            $filePath = $file->storeAs($storagePath, $fileName);             
+            
+            // 2. Hitung Baris
+            $ext = strtolower($file->getClientOriginalExtension());
+            $rowCount = $this->countRows($file->getRealPath(), $ext);
+            
+            // 3. Simpan ke Database Import
             ImportMahasiswa::create([
                 'user_id' => Auth::id(),
-                'status' => 'uploaded', // Status awal: menunggu review Admin
+                'status' => 'uploaded',
                 'file_name' => $fileName,
                 'file_path' => $filePath,
                 'total_rows' => $rowCount,
@@ -76,52 +83,61 @@ class ParticipantController extends Controller
             ]);
             
             // 4. Log Activity
+            // PERBAIKAN PENTING: Ganti 'import_document' menjadi 'import_data'
+            // agar sesuai dengan ENUM di database (create_enum_types.php)
             $this->activityLogService->log(
-                'import_document',
-                "User uploaded new document '{$fileName}' ({$rowCount} rows).",
-                Auth::id(),
+                'import_data', 
+                "User uploaded new document '{$fileName}' ({$rowCount} rows).", 
+                Auth::id(), 
                 $request
             );
 
-            return response()->json(['message' => 'Dokumen berhasil diupload dan menunggu review Admin.','rows_counted' => $rowCount,], 201);
+            // Simpan perubahan
+            DB::commit();
 
-        } catch (\Exception $e) 
-        {
-            // Jika ada error, hapus file yang mungkin sudah tersimpan
-            if (isset($filePath) && Storage::exists($filePath)) 
-            {
+            return response()->json([
+                'message' => 'Dokumen berhasil diupload.',
+                'rows_counted' => $rowCount,
+            ], 201);
+
+        } catch (\Exception $e) {
+            // Batalkan perubahan jika error
+            DB::rollBack();
+
+            // Hapus file fisik
+            if ($filePath && Storage::exists($filePath)) {
                 Storage::delete($filePath);
             }
-            return response()->json(['message' => 'Import failed','error' => $e->getMessage(),], 500);
+            
+            return response()->json([
+                'message' => 'Import failed',
+                'error' => $e->getMessage(),
+            ], 500);
         }
     }
 
     private function countRows($filePath, $extension)
     {
-        if (in_array($extension, ['csv', 'txt'])) 
-        {
-            $handle = fopen($filePath, 'r');
-            $rowCount = 0;
-            // Hitung semua baris yang tidak kosong
-            while (($row = fgetcsv($handle)) !== false) 
-            {
-                if (empty(array_filter($row))) continue;
-                $rowCount++;
+        try {
+            if (in_array($extension, ['csv', 'txt'])) {
+                if (!file_exists($filePath)) return 0;
+                $handle = fopen($filePath, 'r');
+                $rowCount = 0;
+                while (($row = fgetcsv($handle)) !== false) {
+                    if (array_filter($row)) $rowCount++;
+                }
+                fclose($handle);
+                return max(0, $rowCount - 1);
+            } 
+            
+            if (in_array($extension, ['xlsx', 'xls'])) {
+                $spreadsheet = IOFactory::load($filePath);
+                $worksheet = $spreadsheet->getActiveSheet();
+                return max(0, $worksheet->getHighestRow() - 1);
             }
-            fclose($handle);
-            // Kurangi 1 untuk header
-            return $rowCount > 0 ? $rowCount - 1 : 0;
-        } 
-        
-        if (in_array($extension, ['xlsx', 'xls'])) 
-        {
-            $spreadsheet = IOFactory::load($filePath);
-            $worksheet = $spreadsheet->getActiveSheet();
-            $rows = $worksheet->toArray();
-            // Kurangi 1 untuk header
-            return count($rows) > 0 ? count($rows) - 1 : 0;
+        } catch (\Exception $e) {
+            return 0;
         }
-        
         return 0;
     }
 }

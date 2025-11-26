@@ -9,32 +9,37 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('import_mahasiswa', function (Blueprint $table) {
-            $table->id('import_id');
+            $table->id('import_id'); // Primary Key
 
-            // FK ke users (importer) - wajib ada
+            // FK ke users
             $table->foreignId('user_id')
-                ->constrained('users', 'user_id')
-                ->onDelete('cascade');
+                  ->constrained('users', 'user_id') // Pastikan targetnya user_id
+                  ->onDelete('cascade');
 
-            // ENUM status: pending, approved, rejected
-            $table->rawColumn('status', 'import_status_enum')
-                ->default('pending')
-                ->index();
+            // --- KOLOM FILE (PENTING: INI YANG KURANG SEBELUMNYA) ---
+            $table->string('file_name')->nullable();
+            $table->string('file_path')->nullable();
+            $table->integer('total_rows')->default(0);
 
-            // RAW DATA (nullable semua)
-            $table->string('kelas', 2)->nullable();
+            // Status
+            $table->string('status')->default('uploaded')->index();
+
+            // RAW DATA
+            $table->string('kelas', 10)->nullable();
             $table->integer('angkatan')->nullable();
             $table->date('tgl_lahir')->nullable();
-
-            $table->rawColumn('jenis_kelamin', 'jenis_kelamin_enum')->nullable();
-            $table->rawColumn('agama', 'agama_enum')->nullable();
-
-            $table->string('kode_pos', 5)->nullable();
+            $table->string('jenis_kelamin')->nullable();
+            $table->string('agama')->nullable();
+            $table->string('kode_pos', 10)->nullable();
             $table->string('nama_slta_raw', 255)->nullable();
-            $table->string('nama_jalur_daftar_raw', 20)->nullable();
-            $table->string('nama_wilayah_raw', 100)->nullable();   // kab/kota
-            $table->string('provinsi_raw', 255)->nullable();        // provinsi
+            $table->string('nama_jalur_daftar_raw', 100)->nullable();
+            $table->string('nama_wilayah_raw', 100)->nullable();
+            $table->string('provinsi_raw', 255)->nullable();
+            
             $table->text('admin_notes')->nullable();
+            
+            // Timestamps wajib ada
+            $table->timestamps();
         });
     }
 

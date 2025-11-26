@@ -1,6 +1,11 @@
 <template>
-  <div class="dashboard">
-    <Navbar :user="authStore.user" :role-label="'Participant'" @logout="logout" />
+  <div v-if="authStore.user" class="dashboard">
+    
+    <Navbar 
+        :user="authStore.user || {}" 
+        :role-label="'Participant'" 
+        @logout="logout" 
+    />
 
     <div class="dashboard-content">
       <div class="welcome-section">
@@ -8,9 +13,8 @@
         <p>Silakan upload dokumen data baru atau lihat status dokumen yang sudah Anda kirim.</p>
       </div>
 
-      <!-- Participant Menu -->
       <div class="menu-grid">
-        <router-link :to="{ name: 'participant-import' }" class="menu-card menu-import">
+        <router-link :to="{ name: 'participant-upload' }" class="menu-card menu-import">
           <div class="card-icon">⬆️</div>
           <h3>Upload Dokumen</h3>
           <p>Kirim file CSV/Excel baru untuk diproses oleh Admin.</p>
@@ -51,69 +55,25 @@ export default {
 </script>
 
 <style scoped>
+/* Style tetap sama seperti sebelumnya */
 .dashboard {
   min-height: 100vh;
   background: #f1f5f9;
 }
-
 .dashboard-content {
   max-width: 1200px;
   margin: 0 auto;
   padding: 3rem 2rem;
 }
-
-.welcome-section {
-  margin-bottom: 3rem;
-}
-
-.welcome-section h1 {
-  color: #1e293b;
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-}
-
-.welcome-section p {
-  color: #64748b;
-  font-size: 1.1rem;
-}
-
-.menu-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 2rem;
-}
-
-.menu-card {
-  background: white;
-  padding: 2rem;
-  border-radius: 1rem;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-  cursor: pointer;
-  transition: all 0.3s;
-  text-decoration: none;
-  color: inherit;
-}
-
-.menu-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 25px rgba(0,0,0,0.12);
-}
-
-.card-icon {
-  font-size: 2.5rem;
-  margin-bottom: 1rem;
-}
-
-.menu-card h3 {
-  color: #1e293b;
-  margin-bottom: 0.5rem;
-}
-
-.menu-card p {
-  color: #64748b;
-  font-size: 0.9rem;
-}
-
+.welcome-section { margin-bottom: 3rem; }
+.welcome-section h1 { color: #1e293b; font-size: 2rem; margin-bottom: 0.5rem; }
+.welcome-section p { color: #64748b; font-size: 1.1rem; }
+.menu-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; }
+.menu-card { background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.08); cursor: pointer; transition: all 0.3s; text-decoration: none; color: inherit; }
+.menu-card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(0,0,0,0.12); }
+.card-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+.menu-card h3 { color: #1e293b; margin-bottom: 0.5rem; }
+.menu-card p { color: #64748b; font-size: 0.9rem; }
 .menu-import .card-icon { color: #1B2376; }
 .menu-status .card-icon { color: #ff914d; }
 </style>

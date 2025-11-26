@@ -41,27 +41,32 @@ export const useAuthStore = defineStore('auth', {
         },
 
         async logout() {
+            // 1. Ambil token saat ini sebelum dihapus
             const tokenToUse = this.token
 
-            // Clear state and localStorage FIRST
-            this.user = null
-            this.token = null
-            this.isLoggedIn = false
+            // 2. Hapus token dari penyimpanan lokal browser (Local Storage)
+            // Ini langkah paling penting agar user tidak otomatis login lagi saat halaman direfresh.
             localStorage.removeItem('token')
-            delete axios.defaults.headers.common['Authorization']
-
-            // Then call logout API (in background, don't wait)
-            if (tokenToUse) {
-                try {
+            
+            // 3. Panggil API Logout di server (Background process)
+            // Kita gunakan try-catch agar jika server error/offline, logout di sisi klien tetap jalan.
+            try {
+                if (tokenToUse) {
                     await axios.post('logout', {}, {
                         headers: {
                             Authorization: `Bearer ${tokenToUse}`,
                         },
                     })
-                } catch (error) {
-                    console.error('Logout API error:', error)
                 }
+            } catch (error) {
+                console.error('Logout API error:', error)
             }
+
+            // 4. HARD REDIRECT (Solusi Anti-Crash)
+            // Daripada mereset state Vue manual (yang bikin error "Cannot read properties of null"),
+            // kita paksa browser memuat ulang halaman dan pindah ke /login.
+            // Ini akan membersihkan memori aplikasi secara total dan aman.
+            window.location.href = '/login'
         },
 
         async fetchUser() {
@@ -73,7 +78,7 @@ export const useAuthStore = defineStore('auth', {
                 this.user = response.data
                 this.isLoggedIn = true
             } catch (error) {
-                // Token invalid, clear state
+                // Jika token tidak valid atau expired, lakukan logout paksa
                 this.logout()
             }
         },

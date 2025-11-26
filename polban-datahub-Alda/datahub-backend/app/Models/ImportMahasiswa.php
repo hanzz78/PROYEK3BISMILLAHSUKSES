@@ -10,16 +10,18 @@ class ImportMahasiswa extends Model
     use HasFactory;
 
     protected $table = 'import_mahasiswa';
+    
+    // Karena di migrasi kita pakai $table->id('import_id'), maka PK-nya import_id
     protected $primaryKey = 'import_id';
-    public $timestamps = false;
 
+    // Izinkan mass assignment untuk kolom-kolom ini
     protected $fillable = [
         'user_id',
         'status',
-        'admin_notes',
         'file_name',    
         'file_path',   
         'total_rows',
+        'admin_notes',
         'kelas',
         'angkatan',
         'tgl_lahir',
@@ -30,13 +32,9 @@ class ImportMahasiswa extends Model
         'nama_jalur_daftar_raw',
         'nama_wilayah_raw',
         'provinsi_raw',
-        'admin_notes',
     ];
 
     protected $casts = [
-        'status'        => 'string',   // import_status_enum
-        'jenis_kelamin' => 'string',   // jenis_kelamin_enum
-        'agama'         => 'string',   // agama_enum
         'tgl_lahir'     => 'date',
         'angkatan'      => 'integer',
         'total_rows'    => 'integer',
@@ -44,6 +42,7 @@ class ImportMahasiswa extends Model
 
     public function user()
     {
+        // Sesuaikan FK users (user_id) dengan PK users (user_id)
         return $this->belongsTo(User::class, 'user_id', 'user_id');
     }
 }

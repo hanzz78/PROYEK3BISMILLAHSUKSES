@@ -10,26 +10,28 @@ class ActivityLog extends Model
     use HasFactory;
 
     protected $table = 'activity_logs';
-    protected $primaryKey = 'activitylog_id';
-    public $timestamps = false;
+    protected $primaryKey = 'activitylog_id'; // Pastikan PK sesuai tabel
+
+    // --- PERBAIKAN UTAMA DI SINI ---
+    // 1. Aktifkan timestamps agar created_at terisi otomatis
+    public $timestamps = true; 
+    
+    // 2. Tapi matikan updated_at karena kolomnya TIDAK ADA di database
+    const UPDATED_AT = null;
+    // -------------------------------
 
     protected $fillable = [
         'user_id',
         'action',
         'description',
         'ip_address',
-        'created_at',
+        // 'created_at' tidak perlu masuk fillable jika otomatis
     ];
 
     protected $casts = [
-        'action' => 'string', // enum action_log_enum
         'created_at' => 'datetime',
     ];
 
-    /**
-     * Relasi ke User
-     * user_id nullable, jadi bisa return null
-     */
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id', 'user_id');
